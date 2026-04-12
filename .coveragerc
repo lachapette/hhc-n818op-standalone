@@ -1,0 +1,10 @@
+[run]
+branch = True
+source = daemon_hhc_n818op/
+
+[report]
+ignore_errors = True
+omit =
+    test_*
+    */tests/*
+    */unit_tests/*

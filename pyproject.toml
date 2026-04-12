@@ -1,0 +1,170 @@
+[project]
+name = "daemon-hhc-n818op"
+version = "0.0.0"
+description = "Server HHC-N818OP Standalone with Python"
+authors = [{ name = "Yannick LIDIE", email = "yannick@lidie.fr" }]
+requires-python = ">=3.10"
+readme = "README.md"
+license = "GPL-3.0-only"
+#package-mode = false
+
+dependencies = [
+    "requests",
+    "ruamel.yaml",
+    "pytz",
+    "meross-iot",
+    "twine>=6.2.0",
+    "build>=1.4.3",
+]
+
+[dependency-groups]
+dev = [
+    # static analysis tools
+    "flake8-comprehensions",
+    "flake8",
+    "bandit",
+    "black",
+    "isort",
+    "mypy",
+    "ruff",
+    "types-PyYAML",
+    "types-requests",
+    "pre-commit",
+    "pycodestyle",
+    "pydocstyle",
+    "pyfakefs",
+    "pyflakes",
+    "pylint",
+    "yamllint",
+    "icecream",
+    # Doc generation
+    "commitizen",
+    "enum_tools[sphinx]",
+    "json-schema-for-humans",
+    "myst-parser",
+    "sphinx",
+    "sphinx-autobuild",
+    "sphinx-autodoc-typehints",
+    "sphinx-click",
+    "sphinx-copybutton",
+    "sphinx-favicon",
+    "sphinx-inline-tabs",
+    "sphinx-markdown-builder",
+    "sphinxcontrib-confluencebuilder",
+    "sphinxcontrib-mermaid",
+    "sphinxcontrib-plantuml",
+    # Only use click-extra for sphinx, not for all the runtime function. This lib
+    # has too many runtime dependencies
+    "click-extra",
+    # Adding some dependencies required for sphinx
+    "bracex",
+    # Sphinx themes
+    "furo",
+    "sphinx-rtd-theme",
+    "piccolo_theme",
+    "pygments-ansi-color",
+    "pallets-sphinx-themes",
+    # Test
+    "asynctest",
+    "mock",
+    "pytest",
+    "pytest-cov",
+    "pytest-html",
+    "pytest-mock",
+    "pytest-sugar",
+    "pytest-watch",
+    "pytest-parametrization",
+    "pytest-clarity",
+    "pytest-xdist",
+    # sbom
+    "cyclonedx-bom",
+    "cyclonedx-python-lib[validation]",
+    # self-contained executable
+    "shiv",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["daemon_hhc_n818op"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+cache-dir = ".uv-cache"
+
+[tool.isort]
+profile = "black"
+py_version = "310"
+line_length = 250
+known_deps = [
+]
+known_third_party = [
+    "setuptools",
+    "path",
+]
+known_first_party = "hhc-n818op-standalone"
+force_single_line = false
+force_to_top = ["__future__"]
+sections = [
+    "FUTURE",
+    "STDLIB",
+    "THIRDPARTY",
+    "DEPS",
+    "FIRSTPARTY",
+    "LOCALFOLDER",
+]
+known_future_libraries = ["__future__"]
+default_section = "THIRDPARTY"
+import_heading_stdlib = "Standard Library"
+import_heading_firstparty = "HHC_N818OP Client daemonized"
+import_heading_thirdparty = "Third Party Libraries"
+import_heading_deps = "Plugins devices dependencies"
+
+
+[tool.black]
+line-length = 250
+target-version = ["py310", "py311", "py312"]
+
+
+[tool.ruff]
+line-length = 250
+target-version = "py310"
+
+
+[tool.pytest.ini_options]
+markers = [
+    "integration_tests: integration tests requires network connectivity",
+    "yaml: marks tests as yaml loading tests",
+    "serial",
+]
+
+[tool.pylint.format]
+max_line_length = 250
+
+
+[tool.mypy]
+ignore_missing_imports = true
+warn_no_return = false
+strict_optional = true
+
+[tool.coverage.report]
+exclude_lines = [
+    # Reenable default pragma
+    "pragma: no cover",
+    # Ignore TYPE_CHECKING blocks
+    "if TYPE_CHECKING:",
+    "if MYPY:",
+    # Ignore import statements
+    "import .*",
+    "from.*import.*",
+]
+exclude_also = [
+    # Comments to turn coverage on and off:
+    "pragma: no cover: start(?s:.)*pragma: no cover: stop",
+    # 3. A pragma comment that excludes an entire file:
+    "\\A(?s:.*# pragma: exclude file.*)\\Z",
+]
