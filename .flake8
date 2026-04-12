@@ -1,0 +1,36 @@
+[flake8]
+ignore =
+    # Unnecessary list call around sorted()
+    C413
+    # Unnecessary list comprehension (enforced by pylint)
+    C416,
+    # is too complex (enforced by pylint)
+    C901,
+    # continuation line under-indented for hanging indent
+    E121,
+    # continuation line over-indented for hanging indent
+    E126,
+    # whitespace before ':' (enforced by black)
+    E203,
+    # missing whitespace after ',' (enforced by black)
+    E231,
+    # do not use bare 'except' (done by pylint)
+    E722,
+    # FileNotFoundError
+    E902,
+    # imported but unused (check done by pylint)
+    F401,
+    # local variable is assigned to but never used (better done by pylint)
+    F841,
+    # redefinition of unused (done by pylint)
+    F811,
+    # line break before binary operator (enforced by black)
+    W503
+
+max-line-length = 290
+exclude = .env
+max-complexity = 12
+accept-encodings = utf-8
+per-file-ignores =
+    tests/*.py: C401,C403,E501
+    tests/**/*.py: C401,C403,E501

@@ -1,0 +1,119 @@
+*.py[cod]
+
+# C extensions
+*.so
+
+# Packages
+*.egg*
+*.egg-info
+/dist
+/distshiv
+/build
+/eggs
+/parts
+/bin
+/var
+/sdist
+/develop-eggs
+/.installed.cfg
+/lib
+/lib64
+
+# PyCharm
+.idea/
+/.idea
+
+# Installer logs
+pip-log.txt
+
+# Unit test / coverage reports
+/coverage_html/
+/.coverage*
+!/.coveragerc
+/.tox
+/nosetests.xml
+/.testrepository
+/report-*.xml
+/report-*.html
+/.venv
+/venv
+/.DS_Store
+
+# Translations
+*.mo
+
+# Mr Developer
+/.mr.developer.cfg
+/.project
+/.pydevproject
+
+# Jupyterlab checkpoint files
+.ipynb_checkpoints/
+
+# Visual Studio Code
+.vscode/
+/.vscode/*
+!/.vscode/launch.json
+!/.vscode/settings.json
+
+
+# Complexity
+/output/*.html
+/output/*/index.html
+
+# Sphinx
+/docs/_build
+/docs/source/changelog.md
+
+# Editors
+*~
+.*.swp
+.*sw?
+*.orig
+
+.pytest_cache/
+.mypy_cache/
+__pycache__/
+
+# Keep .gitkeep files
+!/**/.gitkeep
+
+# Ignore .env and .env.creds but add the other dotenv files in conf
+.env
+.env.creds
+!docker/.env.in
+!.env.defaults
+
+# Ignore reports outpus
+reports/
+
+# Direnv
+.direnv/
+/_copilot_cleanup/
+.venv/
+
+.uv-cache
+uv.lock
+nbproject/
+test.php
+core/config/common.config.php
+plugins/*
+sftp-config.json
+.project
+.DS_Store
+Thumbs.db
+*.php~
+docs/_site/
+docs/Gemfile.lock
+docs/.sass-cache/
+.remote-sync.json
+
+log/
+*.log
+*.pid
+
+# OpenAI
+config/
+
+# Cygwin
+.cache_cygwin

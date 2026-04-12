@@ -1,0 +1,23 @@
+services:
+
+  hhc_n818op_client:
+    container_name: ${CONTAINER_NAME}
+    image: ${IMAGE_NAME}
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Paris
+      PUID: ${PUID:-${UID_GID_DEFAULT}}
+      PGID: ${PGID:-${UID_GID_DEFAULT}}
+    user: "${PUID:-${UID_GID_DEFAULT}}:${PGID:-${UID_GID_DEFAULT}}"
+    build:
+      context: ${WRK_DOCKER_DIR}/../
+      dockerfile: docker/Dockerfile
+      args:
+        INSTALL_FOLDER_CLIENT: ${INSTALL_FOLDER_CLIENT:-/usr/share/${CONTAINER_NAME}}
+    networks:
+      - hhc_n818op
+    privileged: false
+
+networks:
+  hhc_n818op:
+    name: ${CONTAINER_NETWORK}

@@ -1,0 +1,9 @@
+skips:
+  - B101  # Use of assert detected.
+  - B104  # hardcoded_bind_all_interfaces
+  - B105  # hardcoded_password_string
+  - B108  # hardcoded_tmp_directory
+  - B113  # request_without_timeout
+  - B404  # import subprocess
+exclude_dirs:
+  -  'tests'
