@@ -201,6 +201,7 @@ pylint:
 
 mypy:
 	# Static type checker only enabled on methods that uses Python Type Annotations
+	$(UV) run pip install types-pytz
 	$(UV) run mypy $(SRC_FOLDERS)
 
 bandit:

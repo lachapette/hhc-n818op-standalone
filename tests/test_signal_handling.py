@@ -96,7 +96,7 @@ class TestSignalHandlers(unittest.TestCase):
 
         original_handler = signal.getsignal(signal.SIGTERM)
         try:
-            handler = SignalsHandler()
+            SignalsHandler()
             sigterm_handler = signal.getsignal(signal.SIGTERM)
 
             # Explicit assertions
@@ -117,7 +117,7 @@ class TestSignalHandlers(unittest.TestCase):
 
         original_handler = signal.getsignal(signal.SIGINT)
         try:
-            handler = SignalsHandler()
+            SignalsHandler()
             sigint_handler = signal.getsignal(signal.SIGINT)
 
             # Explicit assertions

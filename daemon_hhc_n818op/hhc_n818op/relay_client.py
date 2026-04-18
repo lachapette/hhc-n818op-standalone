@@ -8,7 +8,7 @@ import sched
 import socket
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo
 from pathlib import Path
 from sched import scheduler
 from time import sleep
@@ -62,11 +62,11 @@ class RelayClient(threading.Thread):
             _relays_scenarios (dict): Configuration for relay scenarios.
         """
         super().__init__()
-        self.plugins: "Plugins" = plugins
-        self.tz: "datetime.tzinfo" = timezone(_timezone) if _timezone else timezone(str(datetime.now().astimezone().tzname()))
+        self.plugins: Plugins = plugins
+        self.tz: tzinfo = timezone(_timezone) if _timezone else timezone(str(datetime.now().astimezone().tzname()))
         self.s: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.lock: threading.Lock = threading.Lock()
-        self.relay_status_listener: "RelayClientStatusListener" = RelayClientStatusListener(self.s, self.lock)
+        self.relay_status_listener: RelayClientStatusListener = RelayClientStatusListener(self.s, self.lock)
         self._relay_status: str = ""
         self._host: str = _relay_server_host
         self._port: int = _relay_server_port
@@ -100,7 +100,6 @@ class RelayClient(threading.Thread):
                 if relays_scheduler.empty():
                     for current_scenario_relays in self._scenarios_config:
                         start_time, end_time = self.get_times_scenario(current_scenario_relays)
-                        total_delay_scenario = self.get_delay_estimated_scenario(start_time, current_scenario_relays)
                         self.set_scheduler_relays_beginning(start_time, end_time, relays_scheduler)
                         task_start_time = start_time
                         previous_scenario_relays_times_on = {relay_id: timedelta(0) for relay_id in ALL_RELAYS_ID}
