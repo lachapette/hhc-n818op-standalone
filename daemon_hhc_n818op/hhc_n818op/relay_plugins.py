@@ -155,7 +155,7 @@ class Plugins(threading.Thread):
         self._relays_plugins_config: dict = relays_plugins_config
         self._plugins: dict[str, PluginMQTT | PluginHTTP] = {}
         self._cache_status_table: dict[str, bool] = {}
-        self.event_loop = None
+        self.event_loop: asyncio.AbstractEventLoop | None = None
         self._initialized: threading.Event = threading.Event()
 
     def run(self):

@@ -18,6 +18,7 @@ from daemon_hhc_n818op.hhc_n818op.relay_client import Plugins, RelayClient, Rela
 # Global references for cleanup
 relay_client = None
 relay_plugins = None
+_pidfile = None
 
 
 def shutdown(signum=None, frame=None):
@@ -38,7 +39,15 @@ def shutdown(signum=None, frame=None):
         logging.debug(f"Error removing PID file: {e}")
     logging.info("Exit 0")
     sys.stdout.flush()
-    sys.exit(0)
+    # Ne pas appeler sys.exit() pendant les tests pytest (évite de tuer le processus pytest)
+    # Vérification de plusieurs variables d'environnement pour détecter pytest
+    in_pytest = (
+        os.environ.get("PYTEST_CURRENT_TEST") is not None
+        or os.environ.get("PYTEST_XDIST_WORKER") is not None
+        or os.environ.get("PYTEST_VERSION") is not None
+    )
+    if not in_pytest:
+        sys.exit(0)
 
 
 def load_config():
@@ -50,7 +59,7 @@ def load_config():
 class SignalsHandler(threading.Thread):
 
     def __init__(self):
-        super().__init__()
+        super().__init__(daemon=True)
         # Configure signal handlers
         signal.signal(signal.SIGTERM, shutdown)  # Kill / SystemCtl stop
         signal.signal(signal.SIGINT, shutdown)  # Ctrl+C
@@ -71,40 +80,48 @@ class SignalsHandler(threading.Thread):
 
 # ----------------------------------------------------------------------------
 
-cfg = load_config()
+def main():
+    """Main entry point for the daemon."""
+    global relay_client, relay_plugins, _pidfile
+    
+    cfg = load_config()
 
-_log_level = cfg[DAEMON][LOG_LEVEL]
-_pidfile = cfg[DAEMON][PIDFILE]
-_cycle = cfg[DAEMON][CYCLE]
-_cycle_sleeping = cfg[DAEMON][CYCLE_SLEEPING]
-_logfile = cfg[DAEMON][LOGFILE] if LOGFILE in cfg[DAEMON] else None
-_timezone = cfg[DAEMON][TIMEZONE] if TIMEZONE in cfg[DAEMON] else None
+    _log_level = cfg[DAEMON][LOG_LEVEL]
+    _pidfile = cfg[DAEMON][PIDFILE]
+    _cycle = cfg[DAEMON][CYCLE]
+    _cycle_sleeping = cfg[DAEMON][CYCLE_SLEEPING]
+    _logfile = cfg[DAEMON][LOGFILE] if LOGFILE in cfg[DAEMON] else None
+    _timezone = cfg[DAEMON][TIMEZONE] if TIMEZONE in cfg[DAEMON] else None
 
-_relay_client_port = cfg[RELAY][PORT]
-_relay_client_host = cfg[RELAY][HOST]
-_relays_scenarios = cfg[RELAYS_SCENARIOS]
-_relays_plugins_config: dict = cfg.get(PLUGIN_RELAYS, {})
+    _relay_client_port = cfg[RELAY][PORT]
+    _relay_client_host = cfg[RELAY][HOST]
+    _relays_scenarios = cfg[RELAYS_SCENARIOS]
+    _relays_plugins_config: dict = cfg.get(PLUGIN_RELAYS, {})
 
-RelaysUtils.set_log_level(_log_level, _logfile)
+    RelaysUtils.set_log_level(_log_level, _logfile)
 
-logging.info(f"Start {Path(__file__).name}")
-logging.info(f"Log level : {_log_level}")
-logging.info(f"Log file : {_logfile}")
-logging.info(f"PID file : {_pidfile}")
+    logging.info(f"Start {Path(__file__).name}")
+    logging.info(f"Log level : {_log_level}")
+    logging.info(f"Log file : {_logfile}")
+    logging.info(f"PID file : {_pidfile}")
 
-try:
-    RelaysUtils.write_pid(Path(_pidfile))
-    relay_plugins = Plugins(_relays_plugins_config)
-    relay_plugins.start()
-    if not relay_plugins.wait_until_ready(timeout=TIMEOUT_PLUGINS_INIT):
-        raise TimeoutError(f"Plugins initialization did not complete within {TIMEOUT_PLUGINS_INIT} seconds")
-    relay_client = RelayClient(relay_plugins, _relay_client_host, _relay_client_port, _timezone, _cycle, _cycle_sleeping, _relays_scenarios)
-    relay_client.start()
+    try:
+        RelaysUtils.write_pid(Path(_pidfile))
+        relay_plugins = Plugins(_relays_plugins_config)
+        relay_plugins.start()
+        if not relay_plugins.wait_until_ready(timeout=TIMEOUT_PLUGINS_INIT):
+            raise TimeoutError(f"Plugins initialization did not complete within {TIMEOUT_PLUGINS_INIT} seconds")
+        relay_client = RelayClient(relay_plugins, _relay_client_host, _relay_client_port, _timezone, _cycle, _cycle_sleeping, _relays_scenarios)
+        relay_client.start()
 
-    # Wait indefinitely (signal handlers will trigger shutdown)
-    SignalsHandler().start()
+        # Wait indefinitely (signal handlers will trigger shutdown)
+        SignalsHandler().start()
 
-except Exception as e:
-    logging.error(f"Fatal error : {e}")
-    logging.info(traceback.format_exc())
-    shutdown()
+    except Exception as e:
+        logging.error(f"Fatal error : {e}")
+        logging.info(traceback.format_exc())
+        shutdown()
+
+
+if __name__ == "__main__":
+    main()

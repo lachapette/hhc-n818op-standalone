@@ -15,7 +15,8 @@ from time import sleep
 
 # Third Party Libraries
 import _socket
-from pytz import timezone
+from pytz import timezone  # type: ignore[import-untyped]
+from pytz.tzinfo import BaseTzInfo  # type: ignore[import-untyped]
 
 # HHC_N818OP Client daemonized
 from daemon_hhc_n818op.hhc_n818op import ALL_RELAYS_ID, ALL_RELAYS_OFF, BUFFER_SIZE, LISTENER_SLEEPING_DELAY, NAME, READ, RELAYS, START_TIME
@@ -63,7 +64,7 @@ class RelayClient(threading.Thread):
         """
         super().__init__()
         self.plugins: "Plugins" = plugins
-        self.tz: "datetime.tzinfo" = timezone(_timezone) if _timezone else timezone(str(datetime.now().astimezone().tzname()))
+        self.tz: BaseTzInfo = timezone(_timezone) if _timezone else timezone(str(datetime.now().astimezone().tzname()))
         self.s: socket.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.lock: threading.Lock = threading.Lock()
         self.relay_status_listener: "RelayClientStatusListener" = RelayClientStatusListener(self.s, self.lock)
@@ -100,7 +101,6 @@ class RelayClient(threading.Thread):
                 if relays_scheduler.empty():
                     for current_scenario_relays in self._scenarios_config:
                         start_time, end_time = self.get_times_scenario(current_scenario_relays)
-                        total_delay_scenario = self.get_delay_estimated_scenario(start_time, current_scenario_relays)
                         self.set_scheduler_relays_beginning(start_time, end_time, relays_scheduler)
                         task_start_time = start_time
                         previous_scenario_relays_times_on = {relay_id: timedelta(0) for relay_id in ALL_RELAYS_ID}

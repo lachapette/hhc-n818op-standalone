@@ -96,7 +96,7 @@ class TestSignalHandlers(unittest.TestCase):
 
         original_handler = signal.getsignal(signal.SIGTERM)
         try:
-            handler = SignalsHandler()
+            SignalsHandler()
             sigterm_handler = signal.getsignal(signal.SIGTERM)
 
             # Explicit assertions
@@ -117,7 +117,7 @@ class TestSignalHandlers(unittest.TestCase):
 
         original_handler = signal.getsignal(signal.SIGINT)
         try:
-            handler = SignalsHandler()
+            SignalsHandler()
             sigint_handler = signal.getsignal(signal.SIGINT)
 
             # Explicit assertions
@@ -263,13 +263,25 @@ class TestShutdownCleanup(unittest.TestCase):
             with patch("daemon_hhc_n818op.hhc_n818op_standalone_d._pidfile"):
                 with patch("daemon_hhc_n818op.hhc_n818op_standalone_d.logging"):
                     with patch("daemon_hhc_n818op.hhc_n818op_standalone_d.os.remove"):
-                        with patch("daemon_hhc_n818op.hhc_n818op_standalone_d.sys.exit") as mock_exit:
-                            with patch("daemon_hhc_n818op.hhc_n818op_standalone_d.sys.stdout.flush"):
-                                shutdown(signum=signal.SIGTERM, frame=None)
+                        # Temporarily remove pytest environment variables to simulate non-pytest context
+                        old_env = {k: os.environ.get(k) for k in ("PYTEST_CURRENT_TEST", "PYTEST_XDIST_WORKER", "PYTEST_VERSION")}
+                        try:
+                            for k in old_env:
+                                os.environ.pop(k, None)
+                            with patch("daemon_hhc_n818op.hhc_n818op_standalone_d.sys.exit") as mock_exit:
+                                with patch("daemon_hhc_n818op.hhc_n818op_standalone_d.sys.stdout.flush"):
+                                    shutdown(signum=signal.SIGTERM, frame=None)
 
-                                # Explicit assertion
-                                mock_exit.assert_called_once_with(0)
-                                print("✓ shutdown() calls sys.exit(0)")
+                                    # Explicit assertion
+                                    mock_exit.assert_called_once_with(0)
+                                    print("✓ shutdown() calls sys.exit(0)")
+                        finally:
+                            # Restore environment
+                            for k, v in old_env.items():
+                                if v is not None:
+                                    os.environ[k] = v
+                                else:
+                                    os.environ.pop(k, None)
 
 
 if __name__ == "__main__":
