@@ -1,6 +1,6 @@
 # Copyright (c)
 
-.PHONY: clean clean-dist clean-build build docs help test
+.PHONY: clean clean-dist clean-build build docs help test tests style check checks sct
 
 # ==================================================================================================
 # Variables

@@ -64,8 +64,8 @@ relays_scenarios: # Date Time formats '%d/%m/%y %H:%M:%S.%f' with combinations l
 #      port: 80
 #      triggers:
 #        #        http:
-#        #          plugin_module: plugins.athom.athom_smart_client_home_http
+#        #          plugin_module: daemon_hhc_n818op.plugins.athom.athom_smart_client_home_http
 #        #          plugin_classname: PluginAthomSmartHome
 #        mqtt:
-#          plugin_module: plugins.meross.meross_client_cloud_mqtt
+#          plugin_module: daemon_hhc_n818op.plugins.meross.meross_client_cloud_mqtt
 #          plugin_classname: PluginMeross
