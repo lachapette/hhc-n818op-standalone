@@ -105,12 +105,22 @@ def main():
 
     try:
         RelaysUtils.write_pid(Path(_pidfile))
-        relay_plugins = Plugins(_relays_plugins_config)
+
+        # Create a barrier with 2 participants: RelayClient thread and Plugins thread
+        # This ensures plugins initialization only happens AFTER relay precondition mask is applied
+        plugins_barrier = threading.Barrier(2)
+
+        # Initialize Plugins with barrier - it will wait for signal from RelayClient
+        relay_plugins = Plugins(_relays_plugins_config, plugins_barrier)
         relay_plugins.start()
+
+        # Create RelayClient with barrier - it will apply mask and signal the barrier
+        relay_client = RelayClient(relay_plugins, _relay_client_host, _relay_client_port, _timezone, _cycle, _cycle_sleeping, _relays_scenarios, _relays_default, plugins_barrier)
+        relay_client.start()
+
+        # Wait for plugins to be ready (they were waiting for barrier signal from RelayClient)
         if not relay_plugins.wait_until_ready(timeout=TIMEOUT_PLUGINS_INIT):
             raise TimeoutError(f"Plugins initialization did not complete within {TIMEOUT_PLUGINS_INIT} seconds")
-        relay_client = RelayClient(relay_plugins, _relay_client_host, _relay_client_port, _timezone, _cycle, _cycle_sleeping, _relays_scenarios, _relays_default)
-        relay_client.start()
 
         # Wait indefinitely (signal handlers will trigger shutdown)
         SignalsHandler().start()

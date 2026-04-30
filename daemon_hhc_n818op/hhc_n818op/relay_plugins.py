@@ -141,13 +141,15 @@ class Plugins(threading.Thread):
     and provides methods to control plugin devices based on relay status.
     Args:
         relays_plugins_config (dict): Configuration for relays and plugins.
+        barrier (threading.Barrier, optional): Barrier to synchronize with relay precondition mask initialization.
     """
 
-    def __init__(self, relays_plugins_config: dict) -> None:
+    def __init__(self, relays_plugins_config: dict, barrier: threading.Barrier | None = None) -> None:
         """
         Initializes the Plugins instance.
         Args:
             relays_plugins_config (dict): Configuration for relays and plugins.
+            barrier (threading.Barrier, optional): Barrier for synchronization. Defaults to None.
         """
         super().__init__()
         self._plugins_mapping: dict = relays_plugins_config.get(MAPPING, {})
@@ -157,6 +159,7 @@ class Plugins(threading.Thread):
         self._cache_status_table: dict[str, bool] = {}
         self.event_loop: asyncio.AbstractEventLoop | None = None
         self._initialized: threading.Event = threading.Event()
+        self._barrier: threading.Barrier | None = barrier
 
     def run(self):
         """
@@ -165,6 +168,12 @@ class Plugins(threading.Thread):
         the event loop for async tasks.
         """
         try:
+            # Wait for the barrier signal that relay precondition mask is applied
+            if self._barrier is not None:
+                logging.info("Plugins thread waiting for relay precondition mask barrier")
+                self._barrier.wait()
+                logging.info("Plugins thread received barrier signal - proceeding with initialization")
+
             self.init_plugins_async_tasks()
             self._plugins_managers_init(self._relays_plugins_config)
             self._cache_status_table = self._initialize_cache_status_table(self._relays_plugins_config)
