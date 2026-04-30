@@ -14,6 +14,7 @@ START_TIME = "start_time"
 CFG_TIME_PATTERN = r"(?P<date>\d{2}/\d{2}/\d{4})?\s?(?P<time>\d{2}:\d{2}:\d{2})?\.?(?P<milliseconds>\d{1,6})?"
 ALL_RELAYS_OFF = [0] * 8
 ALL_RELAYS_ID = [1, 2, 3, 4, 5, 6, 7, 8]
+RELAYS_DEFAULT = "relays_default"
 HTTP = "http"
 DEPENDENCIES = "dependencies"
 MAPPING = "dependencies_mapping"

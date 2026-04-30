@@ -4,6 +4,7 @@ from pathlib import Path
 
 PLUGIN_RELAYS = "plugin_relays"
 RELAYS_SCENARIOS = "relays_scenarios"
+RELAYS_DEFAULT = "relays_default"
 TIMEZONE = "timezone"
 RELAY = "hhc-n818op"
 PIDFILE = "pidfile"
