@@ -23,6 +23,7 @@ from daemon_hhc_n818op.hhc_n818op import ALL_RELAYS_ID, ALL_RELAYS_OFF, BUFFER_S
 from daemon_hhc_n818op.hhc_n818op.relay_plugins import Plugins
 from daemon_hhc_n818op.hhc_n818op.time_parser import RelayTimeParser
 
+# Global socket enum for status codes
 enum_socket = {value: key for (key, value) in vars(_socket).items() if isinstance(value, (str, int)) and not key.startswith("_")}
 
 
@@ -39,6 +40,8 @@ class RelayClient(threading.Thread):
         _cycle (int): Refresh cycle duration in seconds.
         _cycle_sleeping (int): Sleep duration between cycles in seconds.
         _relays_scenarios (dict): Configuration for relay scenarios.
+        _relays_default (list[int], optional): Default relay IDs to enable on startup. If None, all relays are disabled.
+        barrier (threading.Barrier, optional): Barrier for synchronizing with plugins initialization.
     """
 
     def __init__(
@@ -51,6 +54,7 @@ class RelayClient(threading.Thread):
         _cycle_sleeping: int,
         _relays_scenarios: dict,
         _relays_default: list[int] | None = None,
+        barrier: threading.Barrier | None = None,
     ):
         """
         Initializes the RelayClient instance.
@@ -63,6 +67,7 @@ class RelayClient(threading.Thread):
             _cycle_sleeping (int): Sleep duration between cycles in seconds.
             _relays_scenarios (dict): Configuration for relay scenarios.
             _relays_default (list[int], optional): Default relay IDs to enable on startup. If None, all relays are disabled.
+            barrier (threading.Barrier, optional): Barrier to signal when relay precondition mask is applied.
         """
         super().__init__()
         self.plugins: "Plugins" = plugins
@@ -77,24 +82,23 @@ class RelayClient(threading.Thread):
         self._refresh_cycle_sleeping: int = _cycle_sleeping
         self._scenarios_config: dict = _relays_scenarios
         self._relays_default: list[int] = _relays_default if _relays_default is not None else []
+        self._barrier: threading.Barrier | None = barrier
         self._pump_status: int = 0
         self.in_between_tasks_delay: timedelta = timedelta(seconds=2)
 
     def run(self):
         """
         Main execution loop for the RelayClient.
-        Connects to the relay server, starts the status listener, and schedules relay operations
-        based on the configured scenarios. Handles reconnection on errors.
+        Connects to the relay server, applies precondition mask, starts the status listener,
+        and schedules relay operations based on the configured scenarios. Handles reconnection on errors.
         """
         try:
+            # Connect first - needed to use set_all_relays for precondition mask
             self.connect()
             self.relay_status_listener.start()
+            self._set_relays_default_preconditions()
+
             relays_scheduler = sched.scheduler(timefunc=time.monotonic, delayfunc=time.sleep)
-            if self._relays_default:
-                self.set_all_relays(ALL_RELAYS_ID, False)
-                self.set_all_relays(self._relays_default, True)
-            else:
-                self.set_all_relays(ALL_RELAYS_ID, False)
             start_time = datetime.now(self.tz).replace(hour=0, minute=0, second=0, microsecond=0)
             while True:
                 if self.relay_status_listener.has_error():
@@ -139,6 +143,29 @@ class RelayClient(threading.Thread):
             self.disconnect()
             self.relay_status_listener.stop()
             logging.error(f"RelayClient error: {e}", exc_info=True)
+
+    def _set_relays_default_preconditions(self):
+        # Apply relay precondition mask BEFORE any plugins initialization using set_all_relays
+        # This ensures the HHC-N818OP hardware is in the correct state as a precondition for plugins
+        # Single call: directly set the target state (no need to disable all first)
+        try:
+            if self._relays_default:
+                logging.info(f"Applying relay precondition mask: {self._relays_default}")
+                self.set_all_relays(self._relays_default, True)
+                logging.info("Relay precondition mask applied successfully")
+            else:
+                logging.info("All relays disabled (empty precondition mask)")
+                self.set_all_relays([], False)
+        except (TimeoutError, ConnectionError) as e:
+            logging.error(f"Failed to apply relay precondition mask: {e}")
+            logging.error("Plugins cannot be initialized without relay precondition - exiting")
+            raise
+
+        # Signal the barrier that precondition phase is complete (mask applied or no mask needed)
+        # This allows the Plugins thread to proceed with initialization
+        if self._barrier is not None:
+            self._barrier.wait()
+            logging.info("Precondition phase complete - plugins can now initialize")
 
     def set_scheduler_relays_beginning(self, started_time: datetime, ended_time: datetime, relays_scheduler: scheduler) -> None:
         """
@@ -196,9 +223,11 @@ class RelayClient(threading.Thread):
         ended_time = self.get_datetime_end_scenario(started_time, scenario)
         return started_time, ended_time
 
-    def connect(self) -> int:
+    def connect(self, timeout: float = 10.0) -> int:
         """
         Connects to the relay server.
+        Args:
+            timeout (float): Connection timeout in seconds. Default 10.0.
         Returns:
             int: Status code from the server.
         """
@@ -208,8 +237,12 @@ class RelayClient(threading.Thread):
             except OSError as e:
                 logging.debug(f"Error closing socket: {e}")
             self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.s.settimeout(timeout)
             self.relay_status_listener.update_socket(self.s)
-            self.s.connect((self._host, self._port))
+            try:
+                self.s.connect((self._host, self._port))
+            finally:
+                self.s.settimeout(None)  # Reset timeout for subsequent operations
             ret = self.s.send(f"{NAME}".encode())
             self.name = self.s.recv(BUFFER_SIZE).decode().replace(f"{NAME}=", "").replace('"', "")
             logging.info(f"Connected to {self.name} [{enum_socket[ret]}]")
@@ -385,7 +418,7 @@ class RelayClient(threading.Thread):
         logging.info("Waiting for request being applied")
         start_wait = time.time()
         while self.relay_status_listener.get_status_msb() != all_relays_id_msb:
-            if time.time() - start_wait > 5:  # 5-second timeout
+            if time.time() - start_wait > 2:  # 2-second timeout for faster response
                 logging.error("Timeout waiting for relay status update")
                 break
             logging.debug(f"{self.relay_status_listener.get_status_msb()} != {all_relays_id_msb}")
