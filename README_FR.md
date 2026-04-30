@@ -1,6 +1,10 @@
+[HHC-N818OP photo]: doc/img/HHC-N8I8OP_Stock_Photo.jpg
+
 # HHC-N818OP Standalone Client
 
 Un client standalone pour gérer les relais HHC-N818OP avec support de plugins et scénarios programmables.
+
+![HHC-N818OP photo]
 
 ## Description
 
@@ -184,6 +188,7 @@ python daemon_hhc_n818op/hhc_n818op_standalone_d.py
 Le projet fournit un script `start.sh` et un fichier `docker-compose.yaml` pour un déploiement simplifié en conteneur.
 
 #### Prérequis
+
 - Docker installé
 - Docker Compose (v2+)
 - Utilisateur avec permissions Docker
@@ -202,7 +207,6 @@ Le projet fournit un script `start.sh` et un fichier `docker-compose.yaml` pour 
 
    > **Astuce** : Pour personnaliser, modifiez directement le fichier `docker/.env` généré par `start.sh`.
 
-
 #### Démarrer le service
 
 ```bash
@@ -214,6 +218,7 @@ cd docker/bin
 ```
 
 Le script `start.sh` effectue automatiquement :
+
 - La création du réseau Docker `hhc_n818op_network` (s'il n'existe pas)
 - La création de l'utilisateur système dédié (si nécessaire)
 - L'arrêt du conteneur existant
@@ -244,6 +249,7 @@ docker exec -it hhc_n818op_client sh
 #### Configuration Docker avancée
 
 Le `Dockerfile` (dans `docker/Dockerfile`) utilise :
+
 - **Image base** : `python:3.11-alpine`
 - **Répertoire de travail** : `${INSTALL_FOLDER_CLIENT}` (par défaut `/usr/share/hhc_n818op/relay_client`)
 - **PYTHONPATH** : Défini sur `${INSTALL_FOLDER_CLIENT}` pour permettre les imports Python
@@ -255,13 +261,13 @@ Pour modifier l'image, éditer le `Dockerfile` puis reconstruire avec la command
 
 #### Variables d'environnement Docker
 
-| Variable | Description | Valeur par défaut |
-|----------|-------------|------------------|
-| `CONTAINER_NAME` | Nom de l'image/container Docker | `hhc_n818op/relay_client` |
-| `INSTALL_FOLDER_CLIENT` | Répertoire d'installation dans le conteneur | `/usr/share/${CONTAINER_NAME}` |
-| `CONTAINER_NETWORK` | Nom du réseau Docker | `hhc_n818op_network` |
-| `WRK_DOCKER_DIR` | Répertoire Docker (généré par `start.sh`) | Chemin absolu du dossier `docker/` |
-| `PUID`/`PGID` | UID/GID de l'utilisateur | `1000` (ou depuis `${UID_GID_DEFAULT}`) |
+| Variable                | Description                                 | Valeur par défaut                       |
+|-------------------------|---------------------------------------------|-----------------------------------------|
+| `CONTAINER_NAME`        | Nom de l'image/container Docker             | `hhc_n818op/relay_client`               |
+| `INSTALL_FOLDER_CLIENT` | Répertoire d'installation dans le conteneur | `/usr/share/${CONTAINER_NAME}`          |
+| `CONTAINER_NETWORK`     | Nom du réseau Docker                        | `hhc_n818op_network`                    |
+| `WRK_DOCKER_DIR`        | Répertoire Docker (généré par `start.sh`)   | Chemin absolu du dossier `docker/`      |
+| `PUID`/`PGID`           | UID/GID de l'utilisateur                    | `1000` (ou depuis `${UID_GID_DEFAULT}`) |
 
 #### Commandes Docker utiles
 
@@ -291,18 +297,22 @@ docker exec -it docker-hhc_n818op_client-1 sh
 #### Dépannage Docker
 
 **Problème : `Cannot locate Dockerfile` ou `path not found`**
+
 - **Cause** : Le `build.context` dans `docker-compose.yaml` est incorrect.
 - **Solution** : Vérifiez que `context: ${WRK_DOCKER_DIR}/../` pointe bien vers la racine du projet (`hhc-n818op-standalone/`).
 - **Vérification** : Lancez `docker compose -f docker/docker-compose.yaml config` pour voir le contexte résolu.
 
 **Problème : `ModuleNotFoundError: No module named 'daemon_hhc_n818op'`**
+
 - **Cause** : Le package Python `daemon_hhc_n818op` n'est pas dans le PYTHONPATH.
 - **Solution** : Le Dockerfile définit maintenant `ENV PYTHONPATH=${INSTALL_FOLDER_CLIENT}` et l'ENTRYPOINT exporte dynamiquement `PYTHONPATH=$(pwd)`. Reconstruisez l'image avec `--no-cache`.
 
 **Problème : `Permission denied: '/var/log/daemon_hhc_n818op.log'` ou `/run/hhc_n818op_d.pid'`**
+
 - **Solution** : Le Dockerfile crée maintenant ces fichiers avec `chmod 666` pendant le build. Reconstruisez l'image avec `--no-cache`.
 
 **Problème : Le conteneur redémarre en boucle**
+
 - **Cause** : Une erreur non gérée dans l'application (ex: erreur de configuration YAML).
 - **Diagnostic** : `docker compose -f docker/docker-compose.yaml logs hhc_n818op_client`
 - **Solution** : Corrigez la configuration (ex: vérifiez que `plugin_relays.dependencies` existe dans votre YAML).
@@ -357,10 +367,10 @@ plugin_classname: PluginMeross
 1. Créer un module dans le dossier `plugins/`
 2. Implémenter une classe qui hérite de `BasePlugin` (voir `relay_plugins.py`)
 3. Implémenter les méthodes requises :
-   - `start()`: Démarrage du plugin
-   - `stop()`: Arrêt du plugin
-   - `is_ready()`: Vérification que le plugin est prêt
-   - `get_device_status(device_id)`: Récupération du statut d'un appareil
+  - `start()`: Démarrage du plugin
+  - `stop()`: Arrêt du plugin
+  - `is_ready()`: Vérification que le plugin est prêt
+  - `get_device_status(device_id)`: Récupération du statut d'un appareil
 
 ### Exécuter les tests
 

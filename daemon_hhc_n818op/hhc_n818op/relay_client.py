@@ -50,6 +50,7 @@ class RelayClient(threading.Thread):
         _cycle: int,
         _cycle_sleeping: int,
         _relays_scenarios: dict,
+        _relays_default: list[int] | None = None,
     ):
         """
         Initializes the RelayClient instance.
@@ -61,6 +62,7 @@ class RelayClient(threading.Thread):
             _cycle (int): Refresh cycle duration in seconds.
             _cycle_sleeping (int): Sleep duration between cycles in seconds.
             _relays_scenarios (dict): Configuration for relay scenarios.
+            _relays_default (list[int], optional): Default relay IDs to enable on startup. If None, all relays are disabled.
         """
         super().__init__()
         self.plugins: "Plugins" = plugins
@@ -74,6 +76,7 @@ class RelayClient(threading.Thread):
         self._refresh_cycle: int = _cycle
         self._refresh_cycle_sleeping: int = _cycle_sleeping
         self._scenarios_config: dict = _relays_scenarios
+        self._relays_default: list[int] = _relays_default if _relays_default is not None else []
         self._pump_status: int = 0
         self.in_between_tasks_delay: timedelta = timedelta(seconds=2)
 
@@ -87,7 +90,11 @@ class RelayClient(threading.Thread):
             self.connect()
             self.relay_status_listener.start()
             relays_scheduler = sched.scheduler(timefunc=time.monotonic, delayfunc=time.sleep)
-            self.set_all_relays(ALL_RELAYS_ID, False)  # DEBUG TODO to remove when official release
+            if self._relays_default:
+                self.set_all_relays(ALL_RELAYS_ID, False)
+                self.set_all_relays(self._relays_default, True)
+            else:
+                self.set_all_relays(ALL_RELAYS_ID, False)
             start_time = datetime.now(self.tz).replace(hour=0, minute=0, second=0, microsecond=0)
             while True:
                 if self.relay_status_listener.has_error():

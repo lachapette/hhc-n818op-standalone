@@ -12,7 +12,7 @@ from pathlib import Path
 from ruamel.yaml import YAML
 
 # HHC_N818OP Client daemonized
-from daemon_hhc_n818op import CYCLE, CYCLE_SLEEPING, DAEMON, HOST, LOG_LEVEL, LOGFILE, PIDFILE, PLUGIN_RELAYS, PORT, RELAY, RELAYS_SCENARIOS, TIMEOUT_PLUGINS_INIT, TIMEZONE, YAML_EXTENSION
+from daemon_hhc_n818op import CYCLE, CYCLE_SLEEPING, DAEMON, HOST, LOG_LEVEL, LOGFILE, PIDFILE, PLUGIN_RELAYS, PORT, RELAY, RELAYS_DEFAULT, RELAYS_SCENARIOS, TIMEOUT_PLUGINS_INIT, TIMEZONE, YAML_EXTENSION
 from daemon_hhc_n818op.hhc_n818op.relay_client import Plugins, RelayClient, RelaysUtils
 
 # Global references for cleanup
@@ -41,11 +41,7 @@ def shutdown(signum=None, frame=None):
     sys.stdout.flush()
     # Ne pas appeler sys.exit() pendant les tests pytest (évite de tuer le processus pytest)
     # Vérification de plusieurs variables d'environnement pour détecter pytest
-    in_pytest = (
-        os.environ.get("PYTEST_CURRENT_TEST") is not None
-        or os.environ.get("PYTEST_XDIST_WORKER") is not None
-        or os.environ.get("PYTEST_VERSION") is not None
-    )
+    in_pytest = os.environ.get("PYTEST_CURRENT_TEST") is not None or os.environ.get("PYTEST_XDIST_WORKER") is not None or os.environ.get("PYTEST_VERSION") is not None
     if not in_pytest:
         sys.exit(0)
 
@@ -80,10 +76,11 @@ class SignalsHandler(threading.Thread):
 
 # ----------------------------------------------------------------------------
 
+
 def main():
     """Main entry point for the daemon."""
     global relay_client, relay_plugins, _pidfile
-    
+
     cfg = load_config()
 
     _log_level = cfg[DAEMON][LOG_LEVEL]
@@ -96,6 +93,7 @@ def main():
     _relay_client_port = cfg[RELAY][PORT]
     _relay_client_host = cfg[RELAY][HOST]
     _relays_scenarios = cfg[RELAYS_SCENARIOS]
+    _relays_default = cfg.get(RELAYS_DEFAULT, [])
     _relays_plugins_config: dict = cfg.get(PLUGIN_RELAYS, {})
 
     RelaysUtils.set_log_level(_log_level, _logfile)
@@ -111,7 +109,7 @@ def main():
         relay_plugins.start()
         if not relay_plugins.wait_until_ready(timeout=TIMEOUT_PLUGINS_INIT):
             raise TimeoutError(f"Plugins initialization did not complete within {TIMEOUT_PLUGINS_INIT} seconds")
-        relay_client = RelayClient(relay_plugins, _relay_client_host, _relay_client_port, _timezone, _cycle, _cycle_sleeping, _relays_scenarios)
+        relay_client = RelayClient(relay_plugins, _relay_client_host, _relay_client_port, _timezone, _cycle, _cycle_sleeping, _relays_scenarios, _relays_default)
         relay_client.start()
 
         # Wait indefinitely (signal handlers will trigger shutdown)
