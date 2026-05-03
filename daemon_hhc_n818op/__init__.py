@@ -1,5 +1,6 @@
 # Standard Library
 import sys
+from datetime import timedelta
 from pathlib import Path
 
 PLUGIN_RELAYS = "plugin_relays"
@@ -19,6 +20,17 @@ TIMEOUT = "timeout"
 LOGFILE = "logfile"
 DATE_TIME_FORMAT = "%d/%m/%y %H:%M:%S.%f"
 TIMEOUT_PLUGINS_INIT = 15
+# Periodicity configuration
+PERIODICITY = "periodicity"
+MASK_END_STRATEGY = "mask_end_strategy"
+CUSTOM_DAYS = "custom_days"
+ONE_DAY_DELTA = timedelta(days=1)
+
+# Mask end strategy constants
+MASK_END_STRATEGY_END_OF_DAY = "end_of_day"
+MASK_END_STRATEGY_END_OF_WEEK = "end_of_week"
+MASK_END_STRATEGY_END_OF_MONTH = "end_of_month"
+MASK_END_STRATEGY_CUSTOM_DAYS = "custom_days"
 
 # Add the parent directory to sys.path to ensure we can import from daemon_hhc_n818op
 PROJECT_ROOT_DIR: Path = Path(__file__)

@@ -7,18 +7,19 @@ import threading
 import time
 import traceback
 from pathlib import Path
+from typing import Optional
 
 # Third Party Libraries
 from ruamel.yaml import YAML
 
 # HHC_N818OP Client daemonized
-from daemon_hhc_n818op import CYCLE, CYCLE_SLEEPING, DAEMON, HOST, LOG_LEVEL, LOGFILE, PIDFILE, PLUGIN_RELAYS, PORT, RELAY, RELAYS_DEFAULT, RELAYS_SCENARIOS, TIMEOUT_PLUGINS_INIT, TIMEZONE, YAML_EXTENSION
+from daemon_hhc_n818op import CYCLE, CYCLE_SLEEPING, DAEMON, HOST, LOG_LEVEL, LOGFILE, PERIODICITY, PIDFILE, PLUGIN_RELAYS, PORT, RELAY, RELAYS_DEFAULT, RELAYS_SCENARIOS, TIMEOUT_PLUGINS_INIT, TIMEZONE, YAML_EXTENSION
 from daemon_hhc_n818op.hhc_n818op.relay_client import Plugins, RelayClient, RelaysUtils
 
 # Global references for cleanup
-relay_client = None
-relay_plugins = None
-_pidfile = None
+relay_client: Optional[RelayClient] = None
+relay_plugins: Optional[Plugins] = None
+_pidfile: Optional[Path] = None
 
 
 def shutdown(signum=None, frame=None):
@@ -95,6 +96,7 @@ def main():
     _relays_scenarios = cfg[RELAYS_SCENARIOS]
     _relays_default = cfg.get(RELAYS_DEFAULT, [])
     _relays_plugins_config: dict = cfg.get(PLUGIN_RELAYS, {})
+    _periodicity_config: dict = cfg.get(PERIODICITY, {})
 
     RelaysUtils.set_log_level(_log_level, _logfile)
 
@@ -115,7 +117,7 @@ def main():
         relay_plugins.start()
 
         # Create RelayClient with barrier - it will apply mask and signal the barrier
-        relay_client = RelayClient(relay_plugins, _relay_client_host, _relay_client_port, _timezone, _cycle, _cycle_sleeping, _relays_scenarios, _relays_default, plugins_barrier)
+        relay_client = RelayClient(relay_plugins, _relay_client_host, _relay_client_port, _timezone, _cycle, _cycle_sleeping, _relays_scenarios, _relays_default, plugins_barrier, _periodicity_config)
         relay_client.start()
 
         # Wait for plugins to be ready (they were waiting for barrier signal from RelayClient)
