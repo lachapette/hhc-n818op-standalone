@@ -19,6 +19,7 @@ from pytz import timezone  # type: ignore[import-untyped]
 from pytz.tzinfo import BaseTzInfo  # type: ignore[import-untyped]
 
 # HHC_N818OP Client daemonized
+from daemon_hhc_n818op import CUSTOM_DAYS, MASK_END_STRATEGY, MASK_END_STRATEGY_CUSTOM_DAYS, MASK_END_STRATEGY_END_OF_DAY, MASK_END_STRATEGY_END_OF_MONTH, MASK_END_STRATEGY_END_OF_WEEK, ONE_DAY_DELTA
 from daemon_hhc_n818op.hhc_n818op import ALL_RELAYS_ID, ALL_RELAYS_OFF, BUFFER_SIZE, LISTENER_SLEEPING_DELAY, NAME, READ, RELAYS, START_TIME
 from daemon_hhc_n818op.hhc_n818op.relay_plugins import Plugins
 from daemon_hhc_n818op.hhc_n818op.time_parser import RelayTimeParser
@@ -27,6 +28,7 @@ from daemon_hhc_n818op.hhc_n818op.time_parser import RelayTimeParser
 enum_socket = {value: key for (key, value) in vars(_socket).items() if isinstance(value, (str, int)) and not key.startswith("_")}
 
 
+# pylint: disable=too-many-public-methods
 class RelayClient(threading.Thread):
     """
     A client for managing relay devices and their scheduling.
@@ -55,6 +57,7 @@ class RelayClient(threading.Thread):
         _relays_scenarios: dict,
         _relays_default: list[int] | None = None,
         barrier: threading.Barrier | None = None,
+        _periodicity_config: dict | None = None,
     ):
         """
         Initializes the RelayClient instance.
@@ -68,6 +71,7 @@ class RelayClient(threading.Thread):
             _relays_scenarios (dict): Configuration for relay scenarios.
             _relays_default (list[int], optional): Default relay IDs to enable on startup. If None, all relays are disabled.
             barrier (threading.Barrier, optional): Barrier to signal when relay precondition mask is applied.
+            _periodicity_config (dict, optional): Configuration for periodicity/recurrence patterns.
         """
         super().__init__()
         self.plugins: "Plugins" = plugins
@@ -83,6 +87,7 @@ class RelayClient(threading.Thread):
         self._scenarios_config: dict = _relays_scenarios
         self._relays_default: list[int] = _relays_default if _relays_default is not None else []
         self._barrier: threading.Barrier | None = barrier
+        self._periodicity_config: dict = _periodicity_config if _periodicity_config is not None else {}
         self._pump_status: int = 0
         self.in_between_tasks_delay: timedelta = timedelta(seconds=2)
 
@@ -110,17 +115,7 @@ class RelayClient(threading.Thread):
                         time.sleep(5)
                         continue
                 if relays_scheduler.empty():
-                    for current_scenario_relays in self._scenarios_config:
-                        start_time, end_time = self.get_times_scenario(current_scenario_relays)
-                        self.set_scheduler_relays_beginning(start_time, end_time, relays_scheduler)
-                        task_start_time = start_time
-                        previous_scenario_relays_times_on = {relay_id: timedelta(0) for relay_id in ALL_RELAYS_ID}
-                        for scenario_relays_durations in current_scenario_relays[RELAYS]:
-                            current_scenario_relays_times_on = self.get_relays_times_on(start_time, scenario_relays_durations)
-                            self.set_scheduler_relays_running(task_start_time, current_scenario_relays_times_on, previous_scenario_relays_times_on, relays_scheduler)
-                            task_start_time += RelayTimeParser.get_max_delay_relays_times_on(current_scenario_relays_times_on)
-                            previous_scenario_relays_times_on = current_scenario_relays_times_on.copy()
-                        self.set_scheduler_relays_finishing(task_start_time, previous_scenario_relays_times_on, relays_scheduler)
+                    self._schedule_scenarios(relays_scheduler)
                     # -DEBUG----------------------------------------------------------------------
                     current_queue = relays_scheduler.queue
                     for event in current_queue:
@@ -143,6 +138,35 @@ class RelayClient(threading.Thread):
             self.disconnect()
             self.relay_status_listener.stop()
             logging.error(f"RelayClient error: {e}", exc_info=True)
+
+    def _schedule_scenarios(self, relays_scheduler: scheduler) -> None:
+        """
+        Schedules all relay scenarios with their begin, run, and finish phases.
+        Calculates mask times between scenarios for default relays.
+
+        Args:
+            relays_scheduler (scheduler): The scheduler for relay tasks.
+        """
+        scenarios_list = list(self._scenarios_config)
+        for current_index, current_scenario_relays in enumerate(scenarios_list):
+            start_time, end_time = self.get_times_scenario(current_scenario_relays)
+            self.set_scheduler_relays_beginning(start_time, end_time, relays_scheduler)
+            task_start_time = start_time
+            current_scenario_previous_relays_times_on: dict[int, timedelta] = {}
+            for scenario_relays_durations in current_scenario_relays[RELAYS]:
+                current_scenario_relays_times_on = self.get_relays_times_on(start_time, scenario_relays_durations)
+                self.set_scheduler_relays_running(task_start_time, current_scenario_relays_times_on, current_scenario_previous_relays_times_on, relays_scheduler)
+                task_start_time += RelayTimeParser.get_max_delay_relays_times_on(current_scenario_relays_times_on)
+                current_scenario_previous_relays_times_on = current_scenario_relays_times_on.copy()
+            if current_index + 1 < len(scenarios_list):
+                next_scenario = scenarios_list[current_index + 1]
+                next_start_time, _ = self.get_times_scenario(next_scenario)
+                gap_duration = next_start_time - end_time
+            else:
+                mask_end_time = self.get_mask_end_time(end_time)
+                gap_duration = mask_end_time - end_time
+            relays_default_mask_times_on = {relay_id: gap_duration for relay_id in self._relays_default}
+            self.set_scheduler_relays_finishing(end_time, relays_default_mask_times_on, current_scenario_previous_relays_times_on, relays_scheduler)
 
     def _set_relays_default_preconditions(self):
         # Apply relay precondition mask BEFORE any plugins initialization using set_all_relays
@@ -199,15 +223,17 @@ class RelayClient(threading.Thread):
         self.set_relays_scheduling_to_be_switched_off(started_time, scenario_relays_times_on, previous_scenario_relays_times_on, relays_scheduler)
         self.set_relays_scheduling_to_be_switched_on(started_time, scenario_relays_times_on, relays_scheduler)
 
-    def set_scheduler_relays_finishing(self, started_time: datetime, previous_relays_id_times_on: dict[int, timedelta], relays_scheduler: scheduler) -> None:
+    def set_scheduler_relays_finishing(self, started_time: datetime, relays_default_mask_times_on: dict[int, timedelta], previous_relays_id_times_on: dict[int, timedelta], relays_scheduler: scheduler) -> None:
         """
         Schedules the finishing of a relay scenario.
         Args:
             started_time (datetime): The start time of the scenario.
+            relays_default_mask_times_on (dict[int, timedelta]): Default relays and their mask durations.
             previous_relays_id_times_on (dict[int, timedelta]): The previous relays and their durations.
             relays_scheduler (scheduler): The scheduler for relay tasks.
         """
-        self.set_relays_scheduling_to_be_switched_off(started_time, {}, previous_relays_id_times_on, relays_scheduler)
+        self.set_relays_scheduling_to_be_switched_off(started_time, relays_default_mask_times_on, previous_relays_id_times_on, relays_scheduler)
+        self.set_relays_scheduling_to_be_switched_on(started_time, relays_default_mask_times_on, relays_scheduler)
 
     def get_times_scenario(self, scenario: dict) -> tuple[datetime, datetime]:
         """
@@ -219,9 +245,64 @@ class RelayClient(threading.Thread):
         """
         time_init = datetime.now(self.tz).replace(hour=0, minute=0, second=0, microsecond=0)
         started_time = RelayTimeParser.parse_date_time_config(time_init, scenario[START_TIME])
-        started_time = started_time if started_time > datetime.now(self.tz) else started_time + timedelta(days=1)
+        started_time = started_time if started_time > datetime.now(self.tz) else started_time + ONE_DAY_DELTA
         ended_time = self.get_datetime_end_scenario(started_time, scenario)
         return started_time, ended_time
+
+    # pylint: disable=too-many-return-statements
+    def get_mask_end_time(self, end_time: datetime) -> datetime:
+        """
+        Calculates the end time for the relay mask based on periodicity configuration.
+
+        Args:
+            end_time (datetime): The end time of the current scenario.
+
+        Returns:
+            datetime: The end time for the mask period.
+        """
+        strategy = self._periodicity_config.get(MASK_END_STRATEGY, MASK_END_STRATEGY_END_OF_DAY)
+
+        if strategy == MASK_END_STRATEGY_END_OF_DAY:
+            # Default: until midnight of the same day
+            return end_time.replace(hour=0, minute=0, second=0, microsecond=0) + ONE_DAY_DELTA
+
+        if strategy == MASK_END_STRATEGY_END_OF_WEEK:
+            # Until end of current week (Sunday midnight)
+            # Find the next Sunday
+            days_until_sunday = (6 - end_time.weekday()) % 7
+            if days_until_sunday == 0 and end_time.hour == 0 and end_time.minute == 0:
+                # Already at Sunday midnight, go to next week
+                days_until_sunday = 7
+            return end_time.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=days_until_sunday)
+
+        if strategy == MASK_END_STRATEGY_END_OF_MONTH:
+            # Until end of current month
+            next_month = end_time.replace(day=28) + ONE_DAY_DELTA  # Safe to add one day to 28th
+            last_day_of_month = next_month - timedelta(days=next_month.day)
+            return last_day_of_month.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        if strategy == MASK_END_STRATEGY_CUSTOM_DAYS:
+            # Use custom_days value from config - can be int or str
+            custom_days = self._periodicity_config.get(CUSTOM_DAYS, 1)
+            if isinstance(custom_days, int):
+                return end_time + timedelta(days=custom_days)
+            if isinstance(custom_days, str):
+                # Parse flexible date/time format: %d/%m/%y %H:%M:%S.%f
+                # Supports partial formats: %H:%M:%S, %d/%m/%y, %d/%m/%y %H:%M:%S, etc.
+                try:
+                    return RelayTimeParser.parse_date_time_config(end_time, custom_days)
+                except Exception:
+                    # Fallback: try as delta
+                    try:
+                        return RelayTimeParser.parse_date_time_delta(end_time, custom_days)
+                    except Exception:
+                        # Default to 1 day if parsing fails
+                        logging.warning(f"Invalid custom_days format: {custom_days}, defaulting to 1 day")
+                        return end_time + ONE_DAY_DELTA
+            return end_time + ONE_DAY_DELTA
+
+        # Default fallback to end_of_day
+        return end_time.replace(hour=0, minute=0, second=0, microsecond=0) + ONE_DAY_DELTA
 
     def connect(self, timeout: float = 10.0) -> int:
         """
