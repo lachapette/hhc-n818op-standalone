@@ -169,11 +169,47 @@ plugin_relays: # Configuration for additional plugins to trigger other hardware 
 
 ### Scenario Options
 
-- `start_time`: Scenario start time (format: `HH:MM:SS` or `HH:MM:SS.microseconds`)
+- `start_time`: Scenario start time. **Supported date/time formats (any combination):**
+  - Full: `DD/MM/YYYY HH:MM:SS.microseconds` (e.g., `15/01/2024 14:30:45.123456`)
+  - Date + Time: `DD/MM/YYYY HH:MM:SS` (e.g., `15/01/2024 14:30:45`)
+  - Date only: `DD/MM/YYYY` (e.g., `15/01/2024`)
+  - Time + Microseconds: `HH:MM:SS.microseconds` (e.g., `14:30:45.123456`)
+  - Time only: `HH:MM:SS` (e.g., `14:30:45`)
+  - Microseconds only: `.microseconds` (e.g., `.123456`)
+  - The `date` and `time` parts are optional. Microseconds support 1-6 digits.
 - `relays_durations`: List of dictionaries where:
   - Key = relay number (1-8)
   - Value = activation duration (format: `HH:MM:SS`)
   - Relays on the same line are activated in parallel
+
+### Periodicity Configuration
+
+The `periodicity` section controls how long default relays stay ON after the last scenario ends.
+
+**Available Strategies:**
+
+| Strategy       | Description                                 | Example Value                         |
+|----------------|---------------------------------------------|---------------------------------------|
+| `end_of_day`   | Until midnight of the same day (default)    | `end_of_day`                          |
+| `end_of_week`  | Until end of current week (Sunday midnight) | `end_of_week`                         |
+| `end_of_month` | Until end of current month                  | `end_of_month`                        |
+| `custom_days`  | Custom duration or date/time                | `3` or `"02:00:00"` or `"01/01/2025"` |
+
+**Configuration Example:**
+```yaml
+periodicity:
+  mask_end_strategy: end_of_day  # Strategy to use
+  custom_days: 1                # Required when strategy is custom_days
+```
+
+**Python Constants:**
+The following constants are available in `daemon_hhc_n818op` for programmatic use:
+- `MASK_END_STRATEGY_END_OF_DAY`
+- `MASK_END_STRATEGY_END_OF_WEEK`
+- `MASK_END_STRATEGY_END_OF_MONTH`
+- `MASK_END_STRATEGY_CUSTOM_DAYS`
+- `CUSTOM_DAYS`
+- `MASK_END_STRATEGY`
 
 ## Usage
 
