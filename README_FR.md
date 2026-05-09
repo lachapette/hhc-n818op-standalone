@@ -169,11 +169,47 @@ plugin_relays: # Configuration de plugins additionnels pour déclencher d'autres
 
 ### Options des scénarios
 
-- `start_time`: Heure de démarrage du scénario (format: `HH:MM:SS` ou `HH:MM:SS.microsecondes`)
+- `start_time`: Heure de démarrage du scénario. **Formats de date/heure supportés (toutes combinaisons):**
+  - Complet: `JJ/MM/AAAA HH:MM:SS.microsecondes` (ex: `15/01/2024 14:30:45.123456`)
+  - Date + Heure: `JJ/MM/AAAA HH:MM:SS` (ex: `15/01/2024 14:30:45`)
+  - Date seulement: `JJ/MM/AAAA` (ex: `15/01/2024`)
+  - Heure + Microsecondes: `HH:MM:SS.microsecondes` (ex: `14:30:45.123456`)
+  - Heure seulement: `HH:MM:SS` (ex: `14:30:45`)
+  - Microsecondes seulement: `.microsecondes` (ex: `.123456`)
+  - Les parties `date` et `heure` sont optionnelles. Les microsecondes supportent 1 à 6 chiffres.
 - `relays_durations`: Liste de dictionnaires où:
   - Clé = numéro de relais (1-8)
   - Valeur = durée d'activation (format: `HH:MM:SS`)
   - Les relais sur la même ligne sont activés en parallèle
+
+### Configuration de périodicité
+
+La section `periodicity` contrôle combien de temps les relais par défaut restent activés après la fin du dernier scénario.
+
+**Stratégies disponibles :**
+
+| Stratégie      | Description                                             | Exemple de valeur                     |
+|----------------|---------------------------------------------------------|---------------------------------------|
+| `end_of_day`   | Jusqu'à minuit du même jour (par défaut)                | `end_of_day`                          |
+| `end_of_week`  | Jusqu'à la fin de la semaine en cours (dimanche minuit) | `end_of_week`                         |
+| `end_of_month` | Jusqu'à la fin du mois en cours                         | `end_of_month`                        |
+| `custom_days`  | Durée ou date/heure personnalisée                       | `3` ou `"02:00:00"` ou `"01/01/2025"` |
+
+**Exemple de configuration :**
+```yaml
+periodicity:
+  mask_end_strategy: end_of_day  # Stratégie à utiliser
+  custom_days: 1                # Requis lorsque la stratégie est custom_days
+```
+
+**Constantes Python :**
+Les constantes suivantes sont disponibles dans `daemon_hhc_n818op` pour une utilisation programmatique :
+- `MASK_END_STRATEGY_END_OF_DAY`
+- `MASK_END_STRATEGY_END_OF_WEEK`
+- `MASK_END_STRATEGY_END_OF_MONTH`
+- `MASK_END_STRATEGY_CUSTOM_DAYS`
+- `CUSTOM_DAYS`
+- `MASK_END_STRATEGY`
 
 ## Utilisation
 
