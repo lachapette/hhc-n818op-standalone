@@ -154,8 +154,21 @@ relays_scenarios: # Liste des scénarios
 
 # Comment this section if you don't use plugins
 plugin_relays: # Configuration de plugins additionnels pour déclencher d'autres relais hardware par dépendances.
+  # Mappage des dépendances entre relais et plugins avec logique AND/NOT
+  # Au moins une entrée 'and' ou 'not' est requise
+  #
+  # 'and': Les plugins sont activés lorsque le relais spécifié EST ALLUMÉ
+  #   Exemple: Lorsque le relais 2 est ALLUMÉ, déclencher le plugin 'Well Pump'
+  #
+  # 'not': Les plugins sont activés lorsque le relais spécifié EST ÉTEINT
+  #   Exemple: Lorsque le relais 3 est ÉTEINT, déclencher le plugin 'Well Pump'
+  #
+  # Un même plugin peut apparaître dans les deux mappages avec des relais différents
   dependencies_mapping:
-    2: Well Pump            # Le relais 2 déclenche un autre relais dépendant nommé "Well Pump"
+    and:
+      2: Well Pump            # Relais 2 ALLUMÉ déclenche Well Pump
+    not:
+      3: Well Pump            # Relais 3 ÉTEINT déclenche Well Pump
 
   dependencies:
     Well Pump: # Relais switch dépendant de type Meross IoT

@@ -154,8 +154,21 @@ relays_scenarios: # List of scenarios
 
 # Comment this section if you don't use plugins
 plugin_relays: # Configuration for additional plugins to trigger other hardware relays by dependencies.
+  # Plugin to relay dependencies mapping with AND/NOT logic
+  # At least one 'and' or 'not' entry is required
+  #
+  # 'and': Plugins are activated when the specified relay IS ON
+  #   Example: When relay 2 is ON, trigger the 'Well Pump' plugin
+  #
+  # 'not': Plugins are activated when the specified relay IS OFF
+  #   Example: When relay 3 is OFF, trigger the 'Well Pump' plugin
+  #
+  # A plugin can appear in both mappings with different relays
   dependencies_mapping:
-    2: Well Pump            # Relay 2 triggers another dependent relay named "Well Pump"
+    and:
+      2: Well Pump            # Relay 2 ON triggers Well Pump
+    not:
+      3: Well Pump            # Relay 3 OFF triggers Well Pump
 
   dependencies:
     Well Pump: # Meross IoT dependent switch relay

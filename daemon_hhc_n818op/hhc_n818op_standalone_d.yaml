@@ -13,7 +13,7 @@ hhc-n818op:
 # Default relay configuration on startup (initialization mask)
 # Format: list of relay IDs to enable (others will be disabled)
 # Example: [1, 3, 5] to enable relays 1, 3 and 5
-relays_default: [ 7 ]
+relays_default: [ ]
 
 # Periodicity configuration for mask end calculation
 # Determines how long default relays stay ON after the last scenario ends
@@ -76,9 +76,27 @@ relays_scenarios: # Date Time formats '%d/%m/%y %H:%M:%S.%f' with combinations l
       - 1: '00:00:10'
         5: '00:00:10'
 
-#plugin_relays:
+plugin_relays:
+  # Plugin to relay dependencies mapping
+  # Defines which plugins are triggered based on relay states
+  # At least one 'and' or 'not' entry is required
+  #
+  # 'and': Plugins are activated when the specified relay IS ON
+  #   Format: relay_id: plugin_name
+  #   Example: When relay 2 is ON, trigger the 'Well Pump' plugin
+  #
+  # 'not': Plugins are activated when the specified relay IS OFF
+  #   Format: relay_id: plugin_name
+  #   Example: When relay 3 is OFF, trigger the 'Well Pump' plugin
+  #
+  # Note: A plugin can appear in both 'and' and 'not' mappings with different relays
+  # A relay can only appear in one mapping type (and or not) for a given plugin
+
 #  dependencies_mapping:
-#    2: Well Pump
+#    and:
+#      2: Well Pump
+#    not:
+#      3: Well Pump
 #
 #  dependencies:
 #    Well Pump:

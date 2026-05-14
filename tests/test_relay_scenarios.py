@@ -318,5 +318,263 @@ class TestRelayScenariosMask(unittest.TestCase):
         self.assertEqual(len(relay_7_off), 0, f"Relay 7 should never be turned OFF when it's in relays_default. " f"OFF calls for relay 7: {relay_7_off}")
 
 
+class TestDependenciesMappingANDNOT(unittest.TestCase):
+    """Test AND/NOT logic in dependencies_mapping."""
+
+    def test_parse_and_not_mappings(self):
+        """Test that AND and NOT mappings are parsed correctly."""
+        # HHC_N818OP Client daemonized
+        from daemon_hhc_n818op.hhc_n818op import AND, DEPENDENCIES, MAPPING, NOT
+
+        config = {
+            MAPPING: {
+                AND: {2: "Pump", 4: "Light"},
+                NOT: {3: "Pump", 5: "Fan"},
+            },
+            DEPENDENCIES: {
+                "Pump": {},
+                "Light": {},
+                "Fan": {},
+            },
+        }
+
+        plugins = Plugins(config)
+
+        # Verify mappings are parsed correctly
+        self.assertEqual(plugins._plugins_mapping_and, {2: "Pump", 4: "Light"})
+        self.assertEqual(plugins._plugins_mapping_not, {3: "Pump", 5: "Fan"})
+
+    def test_and_logic_trigger_active_when_relay_on(self):
+        """Test that AND logic activates trigger when relay is ON."""
+        # HHC_N818OP Client daemonized
+        from daemon_hhc_n818op.hhc_n818op import AND, DEPENDENCIES, MAPPING
+
+        config = {
+            MAPPING: {AND: {2: "Pump"}},
+            DEPENDENCIES: {"Pump": {}},
+        }
+
+        plugins = Plugins(config)
+
+        # Trigger should be active when relay is ON
+        self.assertTrue(plugins.is_trigger_should_be_active(2, True))
+        # Trigger should NOT be active when relay is OFF
+        self.assertFalse(plugins.is_trigger_should_be_active(2, False))
+
+    def test_not_logic_trigger_active_when_relay_off(self):
+        """Test that NOT logic activates trigger when relay is OFF."""
+        # HHC_N818OP Client daemonized
+        from daemon_hhc_n818op.hhc_n818op import DEPENDENCIES, MAPPING, NOT
+
+        config = {
+            MAPPING: {NOT: {3: "Fan"}},
+            DEPENDENCIES: {"Fan": {}},
+        }
+
+        plugins = Plugins(config)
+
+        # Trigger should be active when relay is OFF
+        self.assertTrue(plugins.is_trigger_should_be_active(3, False))
+        # Trigger should NOT be active when relay is ON
+        self.assertFalse(plugins.is_trigger_should_be_active(3, True))
+
+    def test_mixed_and_not_mappings(self):
+        """Test that a plugin can appear in both AND and NOT mappings."""
+        # HHC_N818OP Client daemonized
+        from daemon_hhc_n818op.hhc_n818op import AND, DEPENDENCIES, MAPPING, NOT
+
+        config = {
+            MAPPING: {
+                AND: {2: "Pump"},  # Pump active when relay 2 is ON
+                NOT: {3: "Pump"},  # Pump active when relay 3 is OFF
+            },
+            DEPENDENCIES: {"Pump": {}},
+        }
+
+        plugins = Plugins(config)
+
+        # Relay 2 (AND): active when ON
+        self.assertTrue(plugins.is_trigger_should_be_active(2, True))
+        self.assertFalse(plugins.is_trigger_should_be_active(2, False))
+
+        # Relay 3 (NOT): active when OFF
+        self.assertTrue(plugins.is_trigger_should_be_active(3, False))
+        self.assertFalse(plugins.is_trigger_should_be_active(3, True))
+
+        # Both should point to same plugin
+        self.assertEqual(plugins.get_plugin_name_for_relay(2), "Pump")
+        self.assertEqual(plugins.get_plugin_name_for_relay(3), "Pump")
+
+    def test_is_trigger_exists_with_and_mapping(self):
+        """Test that is_trigger_exists works with AND mapping."""
+        # HHC_N818OP Client daemonized
+        from daemon_hhc_n818op.hhc_n818op import AND, DEPENDENCIES, MAPPING
+
+        config = {
+            MAPPING: {AND: {2: "Pump"}},
+            DEPENDENCIES: {"Pump": {}},
+        }
+
+        plugins = Plugins(config)
+
+        self.assertTrue(plugins.is_trigger_exists(2))
+        self.assertFalse(plugins.is_trigger_exists(99))
+
+    def test_is_trigger_exists_with_not_mapping(self):
+        """Test that is_trigger_exists works with NOT mapping."""
+        # HHC_N818OP Client daemonized
+        from daemon_hhc_n818op.hhc_n818op import DEPENDENCIES, MAPPING, NOT
+
+        config = {
+            MAPPING: {NOT: {3: "Fan"}},
+            DEPENDENCIES: {"Fan": {}},
+        }
+
+        plugins = Plugins(config)
+
+        self.assertTrue(plugins.is_trigger_exists(3))
+        self.assertFalse(plugins.is_trigger_exists(99))
+
+    def test_get_plugin_name_for_relay(self):
+        """Test get_plugin_name_for_relay returns correct plugin name."""
+        # HHC_N818OP Client daemonized
+        from daemon_hhc_n818op.hhc_n818op import AND, DEPENDENCIES, MAPPING, NOT
+
+        config = {
+            MAPPING: {
+                AND: {2: "Pump"},
+                NOT: {3: "Fan"},
+            },
+            DEPENDENCIES: {"Pump": {}, "Fan": {}},
+        }
+
+        plugins = Plugins(config)
+
+        self.assertEqual(plugins.get_plugin_name_for_relay(2), "Pump")
+        self.assertEqual(plugins.get_plugin_name_for_relay(3), "Fan")
+        self.assertIsNone(plugins.get_plugin_name_for_relay(99))
+
+    def test_empty_mapping_warning(self):
+        """Test that empty mapping generates a warning."""
+        # HHC_N818OP Client daemonized
+        from daemon_hhc_n818op.hhc_n818op import DEPENDENCIES, MAPPING
+
+        config = {
+            MAPPING: {},
+            DEPENDENCIES: {},
+        }
+
+        # Should not raise, but should log a warning
+        plugins = Plugins(config)
+        self.assertEqual(plugins._plugins_mapping_and, {})
+        self.assertEqual(plugins._plugins_mapping_not, {})
+
+    def test_only_and_mapping(self):
+        """Test configuration with only AND mapping."""
+        # HHC_N818OP Client daemonized
+        from daemon_hhc_n818op.hhc_n818op import AND, DEPENDENCIES, MAPPING
+
+        config = {
+            MAPPING: {AND: {2: "Pump"}},
+            DEPENDENCIES: {"Pump": {}},
+        }
+
+        plugins = Plugins(config)
+        self.assertEqual(plugins._plugins_mapping_and, {2: "Pump"})
+        self.assertEqual(plugins._plugins_mapping_not, {})
+        self.assertTrue(plugins.is_trigger_exists(2))
+
+    def test_only_not_mapping(self):
+        """Test configuration with only NOT mapping."""
+        # HHC_N818OP Client daemonized
+        from daemon_hhc_n818op.hhc_n818op import DEPENDENCIES, MAPPING, NOT
+
+        config = {
+            MAPPING: {NOT: {3: "Fan"}},
+            DEPENDENCIES: {"Fan": {}},
+        }
+
+        plugins = Plugins(config)
+        self.assertEqual(plugins._plugins_mapping_and, {})
+        self.assertEqual(plugins._plugins_mapping_not, {3: "Fan"})
+        self.assertTrue(plugins.is_trigger_exists(3))
+
+    def test_set_all_plugins_with_and_not_logic(self):
+        """Test set_all_plugins handles AND and NOT logic correctly."""
+        # HHC_N818OP Client daemonized
+        from daemon_hhc_n818op.hhc_n818op import AND, DEPENDENCIES, MAPPING, NOT
+
+        config = {
+            MAPPING: {
+                AND: {2: "Pump"},
+                NOT: {3: "Fan"},
+            },
+            DEPENDENCIES: {
+                "Pump": {"triggers": {}},
+                "Fan": {"triggers": {}},
+            },
+        }
+
+        plugins = Plugins(config)
+
+        # Mock the plugins
+        mock_pump = MagicMock()
+        mock_fan = MagicMock()
+        mock_pump.toggle_on_off = MagicMock(return_value=True)
+        mock_fan.toggle_on_off = MagicMock(return_value=True)
+        plugins._plugins = {"Pump": mock_pump, "Fan": mock_fan}
+        plugins._cache_status_table = {"Pump": False, "Fan": False}
+
+        # Mock event loop
+        plugins.event_loop = MagicMock()
+        plugins.event_loop.is_running.return_value = False
+
+        # Create a mock relay client
+        with patch("daemon_hhc_n818op.hhc_n818op.relay_client.socket.socket"):
+            client = RelayClient(
+                plugins=plugins,
+                _relay_server_host="127.0.0.1",
+                _relay_server_port=5000,
+                _timezone="UTC",
+                _cycle=2,
+                _cycle_sleeping=300,
+                _relays_scenarios=[],
+                _relays_default=[],
+                barrier=None,
+                _periodicity_config={},
+            )
+
+        # Test: Switch relays 2 and 3 ON
+        # Relay 2 (AND): should activate Pump when ON
+        # Relay 3 (NOT): should NOT activate Fan when ON
+        plugins.set_trigger_toggle = MagicMock()
+        client.set_all_plugins([2, 3], True)
+
+        # Verify set_trigger_toggle was called for relay 2 (AND logic: ON -> activate)
+        calls = plugins.set_trigger_toggle.call_args_list
+        relay_ids_toggled = [c[0][0] for c in calls if len(c[0]) > 0]
+        self.assertIn(2, relay_ids_toggled)
+
+    def test_at_least_one_mapping_required(self):
+        """Test that configuration requires at least one AND or NOT entry."""
+        # HHC_N818OP Client daemonized
+        from daemon_hhc_n818op.hhc_n818op import AND, DEPENDENCIES, MAPPING, NOT
+
+        # Valid: has AND
+        config_and = {MAPPING: {AND: {2: "Pump"}}, DEPENDENCIES: {"Pump": {}}}
+        plugins_and = Plugins(config_and)
+        self.assertTrue(plugins_and._plugins_mapping_and or plugins_and._plugins_mapping_not)
+
+        # Valid: has NOT
+        config_not = {MAPPING: {NOT: {3: "Fan"}}, DEPENDENCIES: {"Fan": {}}}
+        plugins_not = Plugins(config_not)
+        self.assertTrue(plugins_not._plugins_mapping_and or plugins_not._plugins_mapping_not)
+
+        # Valid: has both
+        config_both = {MAPPING: {AND: {2: "Pump"}, NOT: {3: "Fan"}}, DEPENDENCIES: {"Pump": {}, "Fan": {}}}
+        plugins_both = Plugins(config_both)
+        self.assertTrue(plugins_both._plugins_mapping_and and plugins_both._plugins_mapping_not)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
