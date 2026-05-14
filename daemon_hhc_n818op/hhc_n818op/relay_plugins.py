@@ -9,7 +9,7 @@ from collections.abc import Coroutine
 
 # HHC_N818OP Client daemonized
 from daemon_hhc_n818op import HOST, PORT
-from daemon_hhc_n818op.hhc_n818op import DEPENDENCIES, DEVICE_UNKNOWN, HTTP, MAPPING, MQTT, PLUGIN_CLASS, PLUGIN_MODULE, TRIGGERS
+from daemon_hhc_n818op.hhc_n818op import AND, DEPENDENCIES, DEVICE_UNKNOWN, HTTP, MAPPING, MQTT, NOT, PLUGIN_CLASS, PLUGIN_MODULE, TRIGGERS
 
 
 class PluginMQTT(ABC):
@@ -152,7 +152,9 @@ class Plugins(threading.Thread):
             barrier (threading.Barrier, optional): Barrier for synchronization. Defaults to None.
         """
         super().__init__()
-        self._plugins_mapping: dict = relays_plugins_config.get(MAPPING, {})
+        self._plugins_mapping_and: dict = {}
+        self._plugins_mapping_not: dict = {}
+        self._parse_dependencies_mapping(relays_plugins_config.get(MAPPING, {}))
         self._dependencies: dict = relays_plugins_config.get(DEPENDENCIES, {})
         self._relays_plugins_config: dict = relays_plugins_config
         self._plugins: dict[str, PluginMQTT | PluginHTTP] = {}
@@ -160,6 +162,32 @@ class Plugins(threading.Thread):
         self.event_loop: asyncio.AbstractEventLoop | None = None
         self._initialized: threading.Event = threading.Event()
         self._barrier: threading.Barrier | None = barrier
+
+    def _parse_dependencies_mapping(self, dependencies_mapping: dict) -> None:
+        """
+        Parses the dependencies_mapping configuration into and/not mappings.
+        Args:
+            dependencies_mapping (dict): The dependencies mapping configuration.
+        """
+        # Parse 'and' mappings: relay_id -> plugin_name (trigger when relay IS on)
+        and_mapping = dependencies_mapping.get(AND, {})
+        if not isinstance(and_mapping, dict):
+            logging.warning(f"Invalid 'and' mapping type: {type(and_mapping)}, expected dict")
+            and_mapping = {}
+        self._plugins_mapping_and = and_mapping
+
+        # Parse 'not' mappings: relay_id -> plugin_name (trigger when relay IS NOT on)
+        not_mapping = dependencies_mapping.get(NOT, {})
+        if not isinstance(not_mapping, dict):
+            logging.warning(f"Invalid 'not' mapping type: {type(not_mapping)}, expected dict")
+            not_mapping = {}
+        self._plugins_mapping_not = not_mapping
+
+        # Validation: at least one 'and' or 'not' entry must be present
+        if not self._plugins_mapping_and and not self._plugins_mapping_not:
+            logging.warning("No 'and' or 'not' entries found in dependencies_mapping. At least one is required.")
+
+        logging.info(f"Parsed dependencies_mapping: and={self._plugins_mapping_and}, not={self._plugins_mapping_not}")
 
     def run(self):
         """
@@ -227,19 +255,73 @@ class Plugins(threading.Thread):
         Returns:
             dict[str, bool]: A dictionary mapping plugin device names to their status.
         """
-        return {plugin_device_name: bool(self._run_async(self._plugins[plugin_device_name].status(device_name=plugin_device_name))) for plugin_device_name in list(relays_plugins_config.get(DEPENDENCIES, {}).keys())}
+        # Collect all unique plugin names from both 'and' and 'not' mappings
+        all_plugin_names: set[str] = set()
+        for mapping in [self._plugins_mapping_and, self._plugins_mapping_not]:
+            all_plugin_names.update(mapping.values())
+        # Also include any plugins from dependencies that might not be in mappings
+        for plugin_name in relays_plugins_config.get(DEPENDENCIES, {}).keys():
+            all_plugin_names.add(plugin_name)
+        return {plugin_device_name: bool(self._run_async(self._plugins[plugin_device_name].status(device_name=plugin_device_name))) for plugin_device_name in list(all_plugin_names)}
 
     def is_trigger_exists(self, relay_id: int) -> bool:
         """
-        Checks if a trigger exists for a relay.
+        Checks if a trigger exists for a relay in either 'and' or 'not' mappings.
         Args:
             relay_id (int): The ID of the relay to check.
         Returns:
             bool: True if the trigger exists, False otherwise.
         """
-        is_plugin_name = True if self._plugins_mapping and relay_id in self._plugins_mapping else False
-        is_plugin_config = True if is_plugin_name and self._plugins_mapping[relay_id] in self._dependencies else False
-        return True if all([is_plugin_name, is_plugin_config]) else False
+        # Check in 'and' mapping
+        if relay_id in self._plugins_mapping_and:
+            plugin_name = self._plugins_mapping_and[relay_id]
+            if plugin_name in self._dependencies:
+                return True
+        # Check in 'not' mapping
+        if relay_id in self._plugins_mapping_not:
+            plugin_name = self._plugins_mapping_not[relay_id]
+            if plugin_name in self._dependencies:
+                return True
+        return False
+
+    def is_trigger_should_be_active(self, relay_id: int, relay_is_on: bool) -> bool:
+        """
+        Checks if a trigger should be active based on relay state and mapping type.
+        For 'and' mappings: trigger is active when relay IS on.
+        For 'not' mappings: trigger is active when relay IS NOT on.
+        Args:
+            relay_id (int): The ID of the relay to check.
+            relay_is_on (bool): Whether the relay is currently on.
+        Returns:
+            bool: True if the trigger should be active, False otherwise.
+        """
+        # Check 'and' mapping first
+        if relay_id in self._plugins_mapping_and:
+            plugin_name = self._plugins_mapping_and[relay_id]
+            if plugin_name in self._dependencies:
+                # For 'and': trigger should be active when relay IS on
+                return relay_is_on
+        # Check 'not' mapping
+        if relay_id in self._plugins_mapping_not:
+            plugin_name = self._plugins_mapping_not[relay_id]
+            if plugin_name in self._dependencies:
+                # For 'not': trigger should be active when relay IS NOT on
+                return not relay_is_on
+        return False
+
+    def get_plugin_name_for_relay(self, relay_id: int) -> str | None:
+        """
+        Gets the plugin name associated with a relay from either 'and' or 'not' mappings.
+        Args:
+            relay_id (int): The ID of the relay to check.
+        Returns:
+            str | None: The plugin name if found, None otherwise.
+        """
+        if relay_id in self._plugins_mapping_and:
+            return self._plugins_mapping_and[relay_id]
+        if relay_id in self._plugins_mapping_not:
+            return self._plugins_mapping_not[relay_id]
+        return None
 
     def set_trigger_toggle(self, relay_id: int, on_off_forced: bool = True):
         """
@@ -250,7 +332,10 @@ class Plugins(threading.Thread):
         """
         plugin_device_name = None
         try:
-            plugin_device_name = self._plugins_mapping[relay_id]
+            plugin_device_name = self.get_plugin_name_for_relay(relay_id)
+            if plugin_device_name is None:
+                logging.debug(f"No plugin mapping found for relay_id [{relay_id}]")
+                return
             plugin = self._plugins[plugin_device_name]
             if on_off_forced:
                 status = self._run_async(plugin.toggle_on_off(device_name=plugin_device_name, on_off_forced=on_off_forced))
@@ -275,10 +360,13 @@ class Plugins(threading.Thread):
         Returns:
             bool: The status of the trigger.
         """
-        plugin_device_name = DEVICE_UNKNOWN
+        plugin_device_name: str | None = DEVICE_UNKNOWN
         status = False
         try:
-            plugin_device_name = self._plugins_mapping[relay_id]
+            plugin_device_name = self.get_plugin_name_for_relay(relay_id)
+            if plugin_device_name is None:
+                logging.debug(f"No plugin mapping found for relay_id [{relay_id}]")
+                return False
             plugin = self._plugins[plugin_device_name]
             if plugin:
                 status = bool(self._run_async(plugin.status(device_name=plugin_device_name)))
@@ -292,7 +380,8 @@ class Plugins(threading.Thread):
         except Exception as e:
             logging.error(f"Failed to get plugin device [{plugin_device_name}] status for relay_id [{relay_id}]: {e}")
         # Updates the cache status table for the current device
-        self._cache_status_table[plugin_device_name] = status
+        if plugin_device_name is not None:
+            self._cache_status_table[plugin_device_name] = status
         logging.debug(f"Plugin device {plugin_device_name} status: {status}")
         return status
 
@@ -304,8 +393,10 @@ class Plugins(threading.Thread):
         Returns:
             bool: True if the trigger is on, False otherwise.
         """
-        plugin_device_name = self._plugins_mapping[relay_id]
-        return self._cache_status_table[plugin_device_name]
+        plugin_device_name = self.get_plugin_name_for_relay(relay_id)
+        if plugin_device_name is None:
+            return False
+        return self._cache_status_table.get(plugin_device_name, False)
 
     def _add_plugin(self, plugin_name, plugin: PluginMQTT | PluginHTTP) -> None:
         """

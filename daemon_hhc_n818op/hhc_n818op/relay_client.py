@@ -541,17 +541,24 @@ class RelayClient(threading.Thread):
 
     def set_all_plugins(self, relays_ids: list[int], on_off: bool) -> None:
         """
-        Sets the status of all plugins.
+        Sets the status of all plugins based on relay state.
+        For 'and' mappings: trigger is active when relay IS on (on_off=True).
+        For 'not' mappings: trigger is active when relay IS NOT on (on_off=False).
         Args:
             relays_ids (list[int]): The IDs of the relays to set.
-            on_off (bool): The status to set for the plugins.
+            on_off (bool): The status of the relays (True=on, False=off).
         """
-        for relay_id in relays_ids:  # Switch off plugin devices mapped to a relay_id
-            if on_off:
-                if self.plugins.is_trigger_exists(relay_id) and not self.plugins.is_trigger_on(relay_id):
+        for relay_id in relays_ids:  # Process plugin devices mapped to relay_id
+            if self.plugins.is_trigger_exists(relay_id):
+                # Determine if this trigger should be active based on mapping type
+                should_be_active = self.plugins.is_trigger_should_be_active(relay_id, on_off)
+                is_currently_active = self.plugins.is_trigger_on(relay_id)
+
+                if should_be_active and not is_currently_active:
+                    # Trigger should be ON but is OFF - toggle it ON
                     self.plugins.set_trigger_toggle(relay_id, True)
-            else:
-                if self.plugins.is_trigger_exists(relay_id) and self.plugins.is_trigger_on(relay_id):
+                elif not should_be_active and is_currently_active:
+                    # Trigger should be OFF but is ON - toggle it OFF
                     self.plugins.set_trigger_toggle(relay_id, False)
 
     def is_relay_on(self, relay_id: int) -> bool:
